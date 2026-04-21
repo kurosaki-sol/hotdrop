@@ -14,7 +14,7 @@ Claims from the on-chain proof-of-work faucet so your test users aren't blocked 
 
 > ### ⚠️ What this is for
 >
-> Your team is about to launch a **devnet beta** (a new protocol integration, an MPC circuit, an ephemeral rollup, a token launchpad) and you need your early users to actually use it. But `api.devnet.solana.com` is rate-limited and often dry, `faucet.solana.com` requires linking a GitHub account and caps you at [2 requests per 8 hours, 5 SOL max per request](https://faucet.solana.com) with an explicit *"AI agents should not use this faucet"* notice — and deploying even a single Anchor program to devnet commonly burns [1.5–3 SOL at first try, more if a redeploy leaves buffer accounts locked](https://solana.com/docs/programs/deploying). Arcium's MXE deployment alone asks for [2–5 SOL up front](https://docs.arcium.com/developers/deployment), and MagicBlock ephemeral rollup programs pay standard Solana BPF loader rent on top of whatever your app needs.
+> Your team is about to launch a **devnet beta** (a new protocol integration, an MPC circuit, an ephemeral rollup, a token launchpad) and you need your early users to actually use it. But `api.devnet.solana.com` is rate-limited and often dry, `faucet.solana.com` [caps at 2 requests every 8 hours](https://faucet.solana.com) with a GitHub sign-in requirement and an explicit *"AI agents should not use this faucet"* notice — and deploying a non-trivial Anchor program to devnet can burn [1–3 SOL depending on program size](https://solana.com/docs/programs/deploying) (more if a failed redeploy leaves [buffer accounts locked](https://solana.com/docs/programs/deploying#closing-program-accounts)). [Arcium's MXE deployment alone asks for 2–5 SOL up front](https://docs.arcium.com/developers/deployment), and MagicBlock ephemeral rollup programs pay standard Solana BPF loader rent on top of whatever your app needs.
 >
 > Sending every tester through the official faucet does not work. This tool farms devnet SOL via [Jarry Xiao's on-chain PoW faucet](https://github.com/jarry-xiao/proof-of-work-faucet) so **your team can fund its own distribution** — no rate limits, no accounts required, no humans in the loop.
 >
@@ -27,8 +27,8 @@ Claims from the on-chain proof-of-work faucet so your test users aren't blocked 
 The heavy lifting is done by a smart contract we did not write:
 
 - **On-chain program:** [`jarry-xiao/proof-of-work-faucet`](https://github.com/jarry-xiao/proof-of-work-faucet) (program ID `PoWSNH2hEZogtCg1Zgm51FnkmJperzYDgPK4fvs8taL` on devnet)
-- **Original author:** [Jarry Xiao](https://x.com/jarxiao) — co-founder of Ellipsis Labs, creator of the Phoenix orderbook on Solana
-- **Reference CLI:** `cargo install devnet-pow` ([crate](https://crates.io/crates/devnet-pow))
+- **Original author:** [Jarry Xiao](https://github.com/jarry-xiao) — Solana engineer, long-time contributor to [Phoenix](https://github.com/Ellipsis-Labs/phoenix-v1) at Ellipsis Labs
+- **Reference CLI:** `cargo install devnet-pow` ([crate](https://crates.io/crates/devnet-pow)) — single-threaded Rust client with `create`, `mine`, and `get-all-faucets` commands
 
 `hotdrop` is a TypeScript client on top of that program with opinionated choices for team-scale automation: parallel mining, a distribution API, proxy-friendly RPC, and a farming loop.
 
@@ -107,7 +107,7 @@ The only "cost" is CPU time. There are no rate limits, no external services requ
 ## Quickstart
 
 ```bash
-git clone https://github.com/YOUR_USER/hotdrop.git
+git clone https://github.com/kurosaki-sol/hotdrop.git
 cd hotdrop
 npm install
 cp .env.example .env
@@ -172,13 +172,16 @@ hotdrop serve                    # start the distribution API, no farming
 
 All commands read config from `.env`.
 
-## Why a proxy?
+## Scaling beyond the public RPC
 
-`api.devnet.solana.com` rate-limits by source IP. Each claim hits the RPC three times (getLatestBlockhash, sendTransaction, confirmTransaction), so even with 4 parallel pipelines you'll see `429 Too Many Requests` within a minute.
+`api.devnet.solana.com` rate-limits by source IP. Each claim hits the RPC three times (getLatestBlockhash, sendTransaction, confirmTransaction), so beyond 2-3 parallel pipelines you'll start seeing `429 Too Many Requests`.
 
-If you set `PROXY_URL` to a rotating residential proxy (or any proxy that swaps the outbound IP per request), the per-IP rate limit stops mattering and you can comfortably run 6-8 pipelines. Without a proxy, keep `POW_PIPELINES` low (2-3) and the loop will still farm steadily, it just ramps up more slowly.
+Two clean ways to scale up:
 
-Both HTTP and SOCKS4/5 proxies work — just put the full URL in `PROXY_URL`.
+1. **Point `RPC_URL` at your own RPC provider** (Helius, Triton, QuickNode, or a self-hosted node). Their devnet endpoints have much higher per-key rate limits and typically handle 6-8+ pipelines without complaint. This is the recommended option for production farming.
+2. **Set `PROXY_URL`** to any HTTP/SOCKS proxy (including rotating datacenter proxies) if you're stuck with the public RPC. Same effect — outbound IP varies per request, per-IP limit doesn't bite. Less tidy than option 1.
+
+Without either, keep `POW_PIPELINES` at 2-3 and the loop will still farm steadily.
 
 ## Performance
 
@@ -199,15 +202,16 @@ Short summary of the security audit we ran on the PoW program:
 - **No rug path.** SOL leaves the faucet only via the `airdrop` instruction, and that instruction always transfers to the `payer` (your main wallet). The source PDA is program-owned — the faucet creator has no mechanism to claw back SOL after it's been transferred.
 - **No spec mutation.** `Difficulty` accounts are `init`-only. A faucet's `(difficulty, amount)` cannot be changed after creation.
 - **Receipt replay protection.** Each `(signer_pubkey, difficulty)` pair can only claim once. We mine a fresh keypair per claim, so this is transparent.
-- **Small honeypot risk.** A malicious creator can register a spec with a huge `amount` whose `source` is empty — you'd pay ~0.0009 SOL of rent for the `receipt` account and receive 0 SOL. Mitigated by [`discovery.ts`](src/discovery.ts) only returning faucets whose reserve covers at least one full claim.
-- **Cap on difficulty.** `MAX_DIFFICULTY` protects against specs that would ask for impossibly expensive mining (diff 8+ = hours of CPU for nothing).
+- **Small honeypot risk.** A malicious creator can register a spec with a huge `amount` whose `source` is empty — you'd pay a small amount of rent (on the order of 0.001 SOL) for the `receipt` account and receive 0 SOL. Mitigated by [`discovery.ts`](src/discovery.ts) only returning faucets whose reserve covers at least one full claim.
+- **Client-side difficulty cap.** `MAX_DIFFICULTY` is a `.env` setting (not an on-chain check) that stops us wasting CPU on specs demanding unreasonable work (diff 8+ = hours for nothing). The on-chain program has no upper bound on difficulty; we enforce our own.
 
 ## Alternatives considered
 
-- **Rotating `requestAirdrop` via proxies** — works for a few hours, then the faucet goes dry for everyone regardless of IP. Brittle. (An earlier version of this repo did exactly that; it's why we moved to PoW.)
-- **Multiple GitHub-linked accounts on `faucet.solana.com`** — violates their ToS and the website says "AI agents should not use this faucet". Also caps out at [2 req / 8h per account](https://faucet.solana.com).
+- **Rotating `requestAirdrop` via proxies** — works for a few hours, then the faucet goes dry for everyone regardless of IP. Brittle, and the reason we moved to PoW.
+- **Multiple GitHub-linked accounts on `faucet.solana.com`** — the site explicitly says "AI agents should not use this faucet" and caps at [2 req / 8h per account](https://faucet.solana.com). Even if it worked, it's a compliance question we'd rather not have with our users.
 - **Paid RPC provider faucets** — [Helius's devnet faucet requires a paid plan](https://www.helius.dev/docs/rpc/devnet-sol) just to access it (1 SOL per airdrop in their examples). [QuickNode](https://faucet.quicknode.com/solana/devnet) gives one drip per 12 hours and asks you to tweet in exchange. Fine to top up a dev wallet once, nowhere near enough to fund a beta.
 - **Running a local validator** — great for unit tests, useless if your beta is on the real devnet and your users' wallets need real devnet SOL.
+- **Upstream `devnet-pow` Rust CLI** — single-threaded, no batching, no HTTP API. Perfect as a one-off tool or to create/fund new faucets; awkward to wire into a Node backend that distributes to beta users.
 
 PoW faucet ends up being the only approach that's both ToS-safe and automation-friendly.
 

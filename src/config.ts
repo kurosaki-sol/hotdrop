@@ -60,13 +60,11 @@ export const config = {
   batchSize: num("BATCH_SIZE", 50),
   batchSleepMs: num("BATCH_SLEEP_MS", 30_000),
 
-  // Optional HTTP distribution API. If both are set, a `POST /distribute`
-  // endpoint starts up. If either is missing, no HTTP server is exposed.
+  // Optional HTTP distribution API. Setting API_TOKEN starts a bearer-auth
+  // `POST /distribute` endpoint. Leave API_TOKEN empty to disable the API.
   apiToken: optional("API_TOKEN"),
   apiPort: num("API_PORT", 3000),
 
   // Safety cap on the `sol` parameter of /distribute.
   maxDistributeSol: num("MAX_DISTRIBUTE_SOL", 5),
 };
-
-export const hasApi = Boolean(config.apiToken);
