@@ -24,6 +24,7 @@
     "distribute": "tsx src/cli.ts distribute",
     "balance": "tsx src/cli.ts balance",
     "serve": "tsx src/cli.ts serve",
+    "create-faucet": "tsx src/cli.ts create-faucet",
     "cli": "tsx src/cli.ts",
     "typecheck": "tsc --noEmit"
   },

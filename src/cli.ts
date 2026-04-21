@@ -15,6 +15,7 @@ import { runCycle } from "./claimer.js";
 import { farm } from "./farm.js";
 import { discoverFaucets } from "./discovery.js";
 import { distribute } from "./distributor.js";
+import { createFaucet } from "./create-faucet.js";
 import { makeConnection } from "./connection.js";
 import { loadMainWallet } from "./wallet.js";
 import { config } from "./config.js";
@@ -88,6 +89,56 @@ async function cmdBalance(): Promise<void> {
   );
 }
 
+async function cmdCreateFaucet(args: string[]): Promise<void> {
+  const [difficultyStr, amountStr, fundingStr] = args;
+  if (!difficultyStr || !amountStr) {
+    throw new Error(
+      "usage: hotdrop create-faucet <difficulty> <amount_sol> [initial_funding_sol]\n" +
+        "       e.g. hotdrop create-faucet 3 0.05 10",
+    );
+  }
+  const difficulty = Number(difficultyStr);
+  const amountSol = Number(amountStr);
+  const initialFundingSol = fundingStr ? Number(fundingStr) : 0;
+
+  // Big warning — we want the user to fully understand this is a one-way
+  // donation before they trigger it. Devnet SOL still took CPU time to mine.
+  console.log(
+    [
+      "",
+      "⚠️  You are about to create a PUBLIC PoW faucet on devnet.",
+      "",
+      `    difficulty:       ${difficulty}`,
+      `    reward per claim: ${amountSol} SOL`,
+      `    initial funding:  ${initialFundingSol} SOL`,
+      "",
+      "This is a one-way donation:",
+      "  • Anyone with CPU can claim from your faucet.",
+      "  • The program has no `close` instruction — funds cannot be recovered.",
+      "  • You can top it up later with `hotdrop distribute <source_pda> <sol>`",
+      "    but you cannot withdraw.",
+      "",
+      "Proceeding in 5 seconds. Ctrl+C to abort.",
+      "",
+    ].join("\n"),
+  );
+  await new Promise((r) => setTimeout(r, 5_000));
+
+  const result = await createFaucet(difficulty, amountSol, initialFundingSol);
+  console.log(JSON.stringify(result, null, 2));
+  console.log(
+    [
+      "",
+      "🎉 Faucet is live. Share this spec so others can claim from it:",
+      `   ${result.specPubkey}`,
+      "",
+      "To add more SOL later:",
+      `   hotdrop distribute ${result.sourcePubkey} <sol>`,
+      "",
+    ].join("\n"),
+  );
+}
+
 async function cmdServe(): Promise<void> {
   if (!config.apiToken) {
     throw new Error("cannot serve API without API_TOKEN set in .env");
@@ -103,12 +154,13 @@ function printUsage(): void {
       "Usage: hotdrop <command> [args]",
       "",
       "Commands:",
-      "  farm                      run the farming loop (keeps running, Ctrl+C to stop)",
-      "  claim [count]             one-shot claim cycle (default count: 20)",
-      "  discover                  list all live faucets",
-      "  distribute <dest> <sol>   transfer SOL from main wallet to <dest>",
-      "  balance                   show main wallet balance",
-      "  serve                     start the distribution API (no farming)",
+      "  farm                                       run the farming loop (Ctrl+C to stop)",
+      "  claim [count]                              one-shot claim cycle (default count: 20)",
+      "  discover                                   list all live faucets",
+      "  distribute <dest> <sol>                    transfer SOL from main wallet to <dest>",
+      "  balance                                    show main wallet balance",
+      "  serve                                      start the distribution API (no farming)",
+      "  create-faucet <diff> <amount> [funding]    deploy a new public faucet and fund it",
       "",
       "Config via .env — see .env.example for all variables.",
     ].join("\n"),
@@ -130,6 +182,8 @@ async function main(): Promise<void> {
       return cmdBalance();
     case "serve":
       return cmdServe();
+    case "create-faucet":
+      return cmdCreateFaucet(args);
     case "--help":
     case "-h":
     case undefined:

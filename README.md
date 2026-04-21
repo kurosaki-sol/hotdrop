@@ -162,15 +162,36 @@ curl -X POST http://localhost:3000/distribute \
 ## CLI
 
 ```bash
-hotdrop farm                     # run the farming loop (Ctrl+C to stop)
-hotdrop claim [count]            # one-shot: claim N times then exit (default 20)
-hotdrop discover                 # list all live faucets with their reserves
-hotdrop distribute <dest> <sol>  # one-off transfer from main wallet
-hotdrop balance                  # show main wallet balance
-hotdrop serve                    # start the distribution API, no farming
+hotdrop farm                                   # run the farming loop (Ctrl+C to stop)
+hotdrop claim [count]                          # one-shot: claim N times then exit (default 20)
+hotdrop discover                               # list all live faucets with their reserves
+hotdrop distribute <dest> <sol>                # one-off transfer from main wallet
+hotdrop balance                                # show main wallet balance
+hotdrop serve                                  # start the distribution API, no farming
+hotdrop create-faucet <diff> <amount> [fund]   # deploy & fund a new public faucet
 ```
 
 All commands read config from `.env`.
+
+## Giving back: fund a faucet
+
+Faucets don't come out of thin air. The `7QR2Vr...` pool that every `hotdrop` user has been draining was seeded by Solana devs with spare devnet SOL — without them, this whole design doesn't work.
+
+If your team has surplus devnet SOL (e.g. you farmed way more than your beta consumed, or a grant gave you a large allocation), consider seeding a new public faucet for the community:
+
+```bash
+# difficulty 3, 0.05 SOL per claim, 20 SOL initial reserve = 400 claims
+hotdrop create-faucet 3 0.05 20
+```
+
+This deploys a new `(difficulty=3, amount=0.05 SOL)` spec on the PoW program and funds its `source` PDA with 20 SOL. Anyone running `hotdrop discover` (or the upstream `devnet-pow` CLI) will see it and can claim. You cannot close the faucet or withdraw the funds — **it's a permanent donation**. Treat it that way.
+
+Why bother?
+- Keeps the commons funded — the next team running a devnet beta finds more faucets waiting
+- Your faucet shows up in `discover` output with your PDA, which is publicly attributable
+- It costs you nothing runtime-wise after the initial fund tx
+
+Top up an existing faucet (yours or anyone else's) with `hotdrop distribute <source_pda> <sol>`.
 
 ## Scaling beyond the public RPC
 
@@ -237,20 +258,21 @@ See [`.env.example`](.env.example) for the full list. The short version:
 
 ```
 src/
-├── cli.ts           # `hotdrop <command>` dispatcher
-├── index.ts         # `npm run dev` entry — API + farm loop
-├── config.ts        # env var parsing
-├── wallet.ts        # main wallet loading
-├── connection.ts    # Solana RPC, optionally tunneled through a proxy
-├── program.ts       # PoW program constants + PDA derivations
-├── discovery.ts     # scan for funded faucets
-├── miner.ts         # vanity keypair mining (worker threads)
-├── mine-worker.ts   # the per-thread mining loop
-├── claimer.ts       # mine + submit + confirm one claim; runCycle
-├── distributor.ts   # transfer SOL from main wallet
-├── api.ts           # optional HTTP /distribute
-├── farm.ts          # continuous farming loop with stats
-└── logger.ts        # structured JSON log lines
+├── cli.ts              # `hotdrop <command>` dispatcher
+├── index.ts            # `npm run dev` entry — API + farm loop
+├── config.ts           # env var parsing
+├── wallet.ts           # main wallet loading
+├── connection.ts       # Solana RPC, optionally tunneled through a proxy
+├── program.ts          # PoW program constants + PDA derivations
+├── discovery.ts        # scan for funded faucets
+├── miner.ts            # vanity keypair mining (worker threads)
+├── mine-worker.ts      # the per-thread mining loop
+├── claimer.ts          # mine + submit + confirm one claim; runCycle
+├── create-faucet.ts    # create + fund a new public faucet (give back)
+├── distributor.ts      # transfer SOL from main wallet
+├── api.ts              # optional HTTP /distribute
+├── farm.ts             # continuous farming loop with stats
+└── logger.ts           # structured JSON log lines
 ```
 
 ## License
@@ -264,4 +286,4 @@ PRs welcome. Good first issues:
 - A ready-made Dockerfile
 - GitHub Actions CI that runs `tsc --noEmit` + a smoke test
 - Benchmarks against a Rust/napi-rs native miner
-- A `hotdrop create-faucet` command that lets users *fund* a new PoW spec and give back to the community
+- Upstream PR to [`devnet-pow`](https://github.com/jarry-xiao/proof-of-work-faucet) adding a `--parallel N` flag to `mine`
