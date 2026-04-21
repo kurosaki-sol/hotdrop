@@ -206,7 +206,7 @@ Short summary of the security audit we ran on the PoW program:
 
 - **Rotating `requestAirdrop` via proxies** — works for a few hours, then the faucet goes dry for everyone regardless of IP. Brittle. (An earlier version of this repo did exactly that; it's why we moved to PoW.)
 - **Multiple GitHub-linked accounts on `faucet.solana.com`** — violates their ToS and the website says "AI agents should not use this faucet". Also caps out at [2 req / 8h per account](https://faucet.solana.com).
-- **Paid RPC provider faucets** — [Helius's devnet faucet requires a paid plan](https://www.helius.dev/docs/rpc/devnet-sol) and caps at ~1 SOL/day even then. [QuickNode](https://faucet.quicknode.com/solana/devnet) offers one drip per 12h. Fine as a seed, not as a sustained source.
+- **Paid RPC provider faucets** — [Helius's devnet faucet requires a paid plan](https://www.helius.dev/docs/rpc/devnet-sol) just to access it (1 SOL per airdrop in their examples). [QuickNode](https://faucet.quicknode.com/solana/devnet) gives one drip per 12 hours and asks you to tweet in exchange. Fine to top up a dev wallet once, nowhere near enough to fund a beta.
 - **Running a local validator** — great for unit tests, useless if your beta is on the real devnet and your users' wallets need real devnet SOL.
 
 PoW faucet ends up being the only approach that's both ToS-safe and automation-friendly.
