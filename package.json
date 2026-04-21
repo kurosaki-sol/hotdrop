@@ -1,0 +1,55 @@
+{
+  "name": "hotdrop",
+  "version": "0.2.0",
+  "description": "Solana devnet SOL for teams — claims from the on-chain proof-of-work faucet by @jarxiao so your beta users aren't blocked by the official rate limits.",
+  "license": "MIT",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "hotdrop": "dist/cli.js"
+  },
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE",
+    ".env.example"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx src/index.ts",
+    "farm": "tsx src/cli.ts farm",
+    "claim": "tsx src/cli.ts claim",
+    "discover": "tsx src/cli.ts discover",
+    "distribute": "tsx src/cli.ts distribute",
+    "balance": "tsx src/cli.ts balance",
+    "serve": "tsx src/cli.ts serve",
+    "cli": "tsx src/cli.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "solana",
+    "devnet",
+    "faucet",
+    "proof-of-work",
+    "airdrop",
+    "beta",
+    "testing"
+  ],
+  "dependencies": {
+    "@solana/web3.js": "^1.95.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^16.4.5",
+    "fastify": "^5.0.0",
+    "socks-proxy-agent": "^8.0.4",
+    "undici": "^6.20.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.7.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.6.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
